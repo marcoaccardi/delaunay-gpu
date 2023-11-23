@@ -1,0 +1,104 @@
+<jittershader name="fill-flat-quads">
+	<description>Default Shader </description>
+	<param name="position" type="vec3" state="POSITION" />
+	<param name="instancePos" type="vec3" state="VERTEX_ATTR" />
+	<param name="imgTex" type="int" default="0" />
+	<param name="MVP" type="mat4" state="MODELVIEW_PROJECTION_MATRIX" />
+	<param name="color" type="vec4" state="COLOR" />
+	<param name="texDim" type="vec2" state="TEXDIM0" />
+	<language name="glsl" version="1.5">
+		<bind param="position" program="vp" />
+		<bind param="instancePos" program="vp" />
+		<bind param="imgTex" program="vp" />
+		<bind param="MVP" program="gp" />
+		<bind param="color" program="vp" />
+		<bind param="texDim" program="vp" />
+		<program name="vp" type="vertex">
+<![CDATA[
+#version 330 core
+uniform sampler2D imgTex;
+uniform vec2 texDim;
+in vec3 position;
+in vec3 instancePos;
+in vec4 color;
+
+out jit_PerVertex {
+	flat float id;	
+} jit_out;
+
+void main() {	
+	gl_Position = vec4(position + vec3(instancePos.xy, 0.), 1.);
+	//vec2 uv = instancePos.xy;
+	//uv.y *= -1;
+	//uv.x /= texDim.x / texDim.y;
+	//uv = uv*0.5 + 0.5;
+	jit_out.id = gl_InstanceID;//abs(instancePos.x) + abs(instancePos.y);
+
+}
+]]>
+		</program>
+		<program name="gp" vertices_out="4" input_type="lines_adjacency" output_type="triangle_strip" type="geometry">
+<![CDATA[
+#version 330 core
+
+layout (triangles) in;
+layout (triangle_strip, max_vertices=3) out;
+
+uniform mat4 MVP;
+
+in jit_PerVertex {
+	flat float id;	
+} jit_in[];
+
+out jit_PerVertex {
+	smooth vec2 dir;
+	flat float id;
+	smooth float dist;
+};
+
+void main() {
+
+	id = jit_in[0].id;
+
+	vec4 p0 = gl_in[0].gl_Position;
+	vec4 p1 = gl_in[1].gl_Position;
+	vec4 p2 = gl_in[2].gl_Position;
+
+	dist = length(p0.xy - p2.xy);
+	gl_Position = MVP*p0;
+	dir = p0.xy - p2.xy;
+	EmitVertex();
+
+	dist = length(p1.xy - p2.xy);
+	gl_Position = MVP*p1;
+	dir = p1.xy - p2.xy;
+	EmitVertex();
+	
+	dist = 0;
+	gl_Position = MVP*p2;
+	dir = vec2(0);//0.5*(p0.xy + p1.xy) - p2.xy;
+	EmitVertex();
+	
+	EndPrimitive();
+}
+]]>
+		</program>
+		<program name="fp" type="fragment">
+<![CDATA[
+#version 330 core
+
+in jit_PerVertex {
+	smooth vec2 dir;
+	flat float id;
+	smooth float dist;
+} jit_in;
+
+out vec4 color;
+
+void main() {
+	color = vec4(jit_in.dir, jit_in.dist, jit_in.id);
+}	
+]]>
+		</program>
+	</language>
+</jittershader>
